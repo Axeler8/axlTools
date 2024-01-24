@@ -1,16 +1,3 @@
-# cyrillic transliteration funs around stringi package
-toTranslit <- function (x) {
-  require("stringi")
-  y <- gsub("\\..*", "", x)
-  y <- gsub('.*/ ?(\\w+)', '\\1', y)
-  y <- gsub("[.]| |ʺ|-", "_", y)
-  y <- gsub("-", ".", y)
-  y <- stringi::stri_trans_general(y, "ru-ru_Latn/BGN")
-  y <- gsub("ʹ", "", y)
-  writeLines(y)
-  return(y)
-}
-
 toTranslit_bq <- function(x = "чёщыфйшьъ:", verbose = FALSE) {
   require("stringi")
   y <- gsub('.*/ ?(\\w+)|\\(|\\)|^\\d+', '\\1', x)
@@ -21,58 +8,6 @@ toTranslit_bq <- function(x = "чёщыфйшьъ:", verbose = FALSE) {
   if(verbose){writeLines(y)}
   return(y)
 }
-
-
-list2JSON <- function(dt, column) {
-
-  if (sum(grepl("list\\(", dt[[column]])) > 1) {
-    writeLines(paste(column, "- JSONed"))
-
-    dt[[column]] <- gsub("^list\\(", "[{", dt[[column]])
-    dt[[column]] <- gsub("\\)$", "}]", dt[[column]])
-    dt[[column]] <- gsub(" = ", ":", dt[[column]])
-    dt[[column]] <- gsub('\n', '', dt[[column]])
-    dt[[column]] <- gsub('list\\(\\)', '\\{\\}', dt[[column]])
-    dt[[column]] <- gsub('NULL', 'null', dt[[column]])
-    dt[[column]] <- gsub('\\}\\]\\,\\s+\\[\\{', '\\}\\,\\{', dt[[column]])
-    dt[[column]] <- gsub("\\)\\,\\s+list\\(", "\\}\\,\\{", dt[[column]])
-    dt[[column]] <- gsub("list\\(", "{", dt[[column]])
-    dt[[column]] <- gsub("\\)\\}", "\\}\\}", dt[[column]])
-    dt[[column]] <- gsub('",\\s+"', '"\\},\\{ "', dt[[column]])
-
-    # return(dt[[column]])
-
-  } else {
-    message(paste(column, "- NO list"))
-    dt[[column]] <- dt[[column]]
-  }
-
-}
-
-
-months_gen <- function(period_start = 365,
-                       period_end = 0) {
-# здесь проверка - брать только положительные числа
-  require("data.table")
-
-  # take a year period
-  MyStart <- as.Date(cut(Sys.Date() - period_start, "month"))
-  MyEnd <- as.Date(cut(Sys.Date() + period_end, "month"))
-
-  date_start <- seq.Date(MyStart, MyEnd, by = "month")
-  date_end <- date_start - 1
-
-  date_start <- date_start[-length(date_start)]
-  date_end <- date_end[-1]
-
-  months <- data.table(date_start = date_start, date_end = date_end)
-
-  return(months)
-  # test_date <- MyStart + 1
-
-}
-
-
 
 
 myFread <- function(fileUrl) {
@@ -141,16 +76,16 @@ BQdl <- function(SQLtext, project){
                                         use_legacy_sql = F) %>%
       bigrquery::bq_table_download() %>%
       as.data.table()
-  return(BQdt)
+    return(BQdt)
   }, error = function(cond){
-  message(cond)
- })
+    message(cond)
+  })
 }
 
 BQupload <- function(
     project = "etalon0919",
-  dt, dataset, table,
-  truncate = FALSE) {
+    dt, dataset, table,
+    truncate = FALSE) {
   # подсчет оптимального объема таблицы для загрузки, пропорционально рабивая по строкам
   # размер объекта - не более 110% от константы BQ ~ 9MB
   max_size <- 9000000 # bytes
@@ -179,7 +114,7 @@ BQupload <- function(
         end <- (seq_row[x + 1]) - 1
         if(seq_row[x + 1] == seq_row[length(seq_row)]){end <- seq_row[x + 1]}
         dt_short <- dt[start : end, ]
-    }
+      }
     Sys.sleep(0.5)
     percent <- paste0(round(nrow(dt_short) / dt_rows * 100L), "%")
 
@@ -187,11 +122,11 @@ BQupload <- function(
       bq_table(project = project,
                dataset = dataset,
                table   = table) %>%
-      bq_table_upload(x = .,
-                      values = dt_short,
-                      create_disposition = "CREATE_IF_NEEDED",
-                      write_disposition = disposition,
-                      fields = dt)
+        bq_table_upload(x = .,
+                        values = dt_short,
+                        create_disposition = "CREATE_IF_NEEDED",
+                        write_disposition = disposition,
+                        fields = dt)
 
       message(STpaste(nrow(dt_short), "rows uploaded,", percent), appendLF = TRUE)
       disposition <<- "WRITE_APPEND" #yeah, append anyway!
@@ -226,15 +161,15 @@ BQupload_part <- function(
       bigrquery::bq_table_exists()
     if(tableCheck){
       cat(paste("\n", table, "already exists"))
-          } else if(!tableCheck) {
-            bigrquery::bq_table(project = project,
+    } else if(!tableCheck) {
+      bigrquery::bq_table(project = project,
                           dataset = dataset,
                           table   = table) %>%
-            bigrquery::bq_table_create(
-              dt[1:5], fields = dt[1:5], timePartitioning = list(
-              type = part_type,
-              field = part_field))
-        cat(paste(table," crataed and partioned by", part_field))
+        bigrquery::bq_table_create(
+          dt[1:5], fields = dt[1:5], timePartitioning = list(
+            type = part_type,
+            field = part_field))
+      cat(paste(table," crataed and partioned by", part_field))
     }
   }
 
@@ -345,10 +280,10 @@ month2day <- function(mydate = as.Date(Sys.Date() - 1),
   names(days_src_dt_split)[names(days_src_dt_split) == "dimentions"] <- dimention
   names(days_src_dt_split)[names(days_src_dt_split) %in% num_names] <- paste0(names(days_src_dt_split)[names(days_src_dt_split) %in% num_names], "_day")
 
-    days_src_dt_split <- days_src_dt_split %>%
+  days_src_dt_split <- days_src_dt_split %>%
     as.data.table()
 
-    if(backJoin) {
+  if(backJoin) {
     days_src_dt_split_joined <- days_src_dt_split %>%
       left_join(dt, by = dimention)
 
@@ -425,7 +360,7 @@ sendLogs_short <- function(theMessage, vocal = FALSE,
   if(length(theMessage) > 1){
     warning("the message should be of length 1, not", length(theMessage))
     theMessage <- theMessage[1] %>% as.character()
-    }
+  }
 
   # e <- environment() # current environment
   # p <- parent.env(e)
