@@ -380,23 +380,6 @@ sendLogs_short <- function(theMessage, vocal = FALSE,
   return(msg)
 }
 
-# sending message prePasted with text label, through defferent outputs
-sendLogs_mini <- function(theMessage, vocal = TRUE,
-                          tsPaste = TRUE, msgAlrt = TRUE) {
-
-  require("magrittr")
-  if(length(theMessage) > 1){
-    warning("the message should be of length 1, not", length(theMessage))
-    theMessage <- theMessage[1] %>% as.character()
-  }
-  # msg <- paste(var, theMessage)
-
-  if(tsPaste == TRUE){msg <- paste(Sys.time(), theMessage, sep = "|")}
-  # Консоль
-  if(msgAlrt == TRUE){message(msg)}
-  if(vocal){writeLines(msg)}
-  return(msg)
-}
 
 # turn nested cells into a text json
 my2json <- function(x){
@@ -437,12 +420,12 @@ my2jsonlist2 <- function(list, toChar = TRUE){
   return(list_flat1)
 }
 
-
+# removing non-ASCII spaces
 intSpaceless <- function(data){
   data <- as.integer(iconv(data, "latin1", "ASCII", sub = ""))
   return(data)}
 
-# calendar
+# calendar table
 clndr <- function(
     controlDay = format(Sys.Date() - 1L, "%A"),
     controlDayLag = 2L,
@@ -494,4 +477,44 @@ makePeriod <- function(date = Sys.Date() - 1){
   dt <- data.table(period_start = c(lastMonth, monthStart),
                    period_end = c(lastMonthEnd, curDate))
   return(dt)
+}
+
+# sending message with timestamp to all possible envs
+sendLogs_mini <- function(theMessage, vocal = FALSE,
+                          tsPaste = TRUE, msgAlrt = TRUE) {
+
+  require("magrittr")
+  if(length(theMessage) > 1){
+    warning("the message should be of length 1, not", length(theMessage))
+    theMessage <- theMessage[1] %>% as.character()
+  }
+  # msg <- paste(var, theMessage)
+  if(tsPaste == TRUE){msg <- paste(Sys.time(), theMessage, sep = "|")}
+  # Консоль
+  if(msgAlrt == TRUE){message(msg)}
+  if(vocal){writeLines(msg)}
+  return(msg)
+}
+
+# paste with time stamp
+TSpaste <- function(...){
+  msg <- as.character(paste(Sys.time(), ...))
+  return(msg)
+}
+
+# round and convert to integer
+roundIntFix <- function(n) {
+  n <- gsub("\\,", "\\.", n)
+  n <- gsub("\\s+", "", n)
+  n <- as.numeric(n)
+  n <- round(n, digits = 0)
+  n <- as.integer(n)
+  return(n)}
+
+# filling down the NAs
+# NOT WORIKNG!
+nafillChar <- function(value, type = "locf"){
+  require("data.table")
+  value = value[data.table::nafill(base::replace(.I, is.na(value), NA), type = type)]
+  return(value)
 }
