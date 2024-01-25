@@ -518,3 +518,27 @@ nafillChar <- function(value, type = "locf"){
   value = value[data.table::nafill(base::replace(.I, is.na(value), NA), type = type)]
   return(value)
 }
+
+# flattening nested lists to text jsons - modern version
+fltJSON_list <- function(list, toChar = TRUE){
+  require("data.table")
+  require("magrittr")
+  require("jsonlite")
+  # wrapping toJSON+as.character
+  fltJSON <- function(x){
+    if(length(x) > 1 | class(x) == "list"){x <- x %>% jsonlite::toJSON() %>% as.character()}
+    return(x)
+  }
+  # applying fun to list
+  list_flat <- lapply(1:length(list), function(x){
+    item <- list[[x]]
+    item_names <- names(item)
+    item1 <- lapply(item, fltJSON)
+    item2 <- as.data.table(rbind(item1))
+    names(item2) <- item_names
+    return(item2)
+  })
+  dt <- rbindlist(list_flat)
+  if(toChar){dt <- dt[, colnames(dt) := lapply(.SD, as.character), .SDcols = colnames(dt)]}
+  return(dt)
+}
