@@ -503,8 +503,9 @@ TSpaste <- function(...){
 }
 
 # round and convert to integer
-roundIntFix <- function(n) {
+roundIntFix <- function(n, latinFix = TRUE) {
   n <- gsub("\\,", "\\.", n)
+  if(latinFix){n <- iconv(n, "latin1", "ASCII", sub = "")}
   n <- gsub("\\s+", "", n)
   n <- as.numeric(n)
   n <- round(n, digits = 0)
@@ -512,12 +513,12 @@ roundIntFix <- function(n) {
   return(n)}
 
 # filling down the NAs
-# NOT WORIKNG!
-nafillChar <- function(value, type = "locf"){
-  require("data.table")
-  value = value[data.table::nafill(base::replace(.I, is.na(value), NA), type = type)]
-  return(value)
-}
+# # !!! NOT WORIKNG !!!
+# nafillChar <- function(value, type = "locf"){
+#   require("data.table")
+#   value = value[data.table::nafill(base::replace(.I, is.na(value), NA), type = type)]
+#   return(value)
+# }
 
 # flattening nested lists to text jsons - modern version
 fltJSON_list <- function(list, toChar = TRUE){
