@@ -10,37 +10,30 @@ toTranslit_bq <- function(x = "чёщыфйшьъ:", verbose = FALSE) {
 }
 
 
-myFread <- function(fileUrl) {
-
+# download files
+freadSrv <- function(fileUrl,  user, password) {
   require("curl")
   require("data.table")
-
-  if(!exists("hh")){
-
-    message("curl MK authing")
-    MK_creds <- readRDS("~/r/src/tokens/MK_creds")
-    hh <<- curl::new_handle()
-    userpwd <- MK_creds$cred %>% as.character()
-
-    curl::handle_setopt(
-      handle = hh,
-      httpauth = 1,
-      userpwd = userpwd)
-  }
-
-  tempDLdir <- "~/r/src/_temp_dl/"
-  filename <- gsub(".*/", "", fileUrl)
-  dest_file <- paste0(tempDLdir, filename)
-
-  dl <- curl::curl_download(fileUrl,
-                            destfile = dest_file,
+  message("curl MK authing")
+  usPs <-  paste0(user, ":", password)
+  hh <- curl::new_handle()
+  curl::handle_setopt(
+    handle = hh,
+    httpauth = 1,
+    userpwd = usPs)
+  tempDLdir <- paste0(getwd(), "/data/curl_tmp/")
+  dir.create(tempDLdir)
+  filename <- paste0(tempDLdir, "tmp_", Sys.Date())
+  dl <- curl::curl_download(fileUrl, destfile = filename,
                             mode = "wb", quiet = TRUE, handle = hh)
-
-  dt <- fread(dl, colClasses = "character", encoding = "UTF-8")
-
-  file.remove(dest_file)
+  Sys.sleep(1)
+  dt <- fread(dl, encoding = "UTF-8")
+              # ,colClasses = "character")
+  if(nrow(dt) > 1){writeLines("download is ok")}
+  curl::handle_reset(hh)
+  file.remove(filename)
+  file.remove(tempDLdir)
   return(dt)
-
 }
 
 # appending fbig & vk leads
@@ -169,7 +162,7 @@ BQupload_part <- function(
           dt[1:5], fields = dt[1:5], timePartitioning = list(
             type = part_type,
             field = part_field))
-      cat(paste(table," crataed and partioned by", part_field))
+      cat(paste(table," created and partioned by", part_field))
     }
   }
 
@@ -459,12 +452,11 @@ symbCount <- function(x, symbol){
   return(n)}
 
 
-markProject <- function(client = "Клиент", object = "Объект",
-                        period = Sys.Date() - 1) {
+markProject <- function(client = "Клиент", object = "Объект", period = Sys.Date() - 1) {
   manualMPdata <- list(client = client, object = object, period_start = as.Date(cut(period, "month")),
                        period_end = max(seq(as.Date(cut(period, "month")), length = 2, by = "months") - 1))
-  return(manualMPdata)
-}
+  return(manualMPdata)}
+
 
 # generating table with dates for two last months to yesterday
 makePeriod <- function(date = Sys.Date() - 1){
@@ -542,4 +534,28 @@ fltJSON_list <- function(list, toChar = TRUE){
   dt <- rbindlist(list_flat)
   if(toChar){dt <- dt[, colnames(dt) := lapply(.SD, as.character), .SDcols = colnames(dt)]}
   return(dt)
+}
+
+
+# saving R image to project folder by date and name
+saveLocal <- function(dataPath, imgName){
+  counter <- paste0(key, as.character(format(Sys.Date())))
+  path <- paste0(getwd(), dataPath, "_", counter)
+  dir.create(path)
+  imgName <- pasge0(imgName, ".RData")
+  save.image(paste0(path, imgName))
+  writeLines(paste("\n R image saved to ", paste0(path, imgName), "\n"))
+}
+
+# loading image from project dir
+loadLocal <- function(imgName, mode) {
+  if(mode != "min" & mode != "max"){stop("Mode is either 'max' or 'min'")}
+  pathh <- paste0(getwd())
+  imgDir <- max(list.files(pathh, pattern = imgName))
+  file <- list.files(paste0(pathh, imgDir), pattern = ".RData")
+  if(mode == "max"){file <- max(file, na.rm = TRUE)}
+  if(mode == "min"){file <- min(file, na.rm = TRUE)}
+  load(paste0(pathh, subd, "/", file), envir = .GlobalEnv)
+  # imgFile <- paste0(imgDirMax, "/", list.files(imgDirMax, pattern = ".Rdata"))
+  cat(paste("\n loading image", imgFile))
 }
