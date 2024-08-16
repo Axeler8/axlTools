@@ -9,19 +9,40 @@ toTranslit_bq <- function(x = "чёщыфйшьъ:", verbose = FALSE) {
   return(y)
 }
 
+# curl file download wrappet with auth
+downloadFile <- function(fileUrl, dir, user, password) {
+  require("curl")
+  # require("data.table")
+  writeLines(paste("downloading", fileUrl, "to", dir, "with curl"))
+  usPs <-  paste0(user, ":", password)
+  hhh <- curl::new_handle()
+  curl::handle_setopt(
+    handle = hhh,
+    httpauth = 1,
+    userpwd = usPs)
+  # downDir <- paste0(getwd(), "/data/curl_tmp/")
+  # dir.create(tempDLdir)
+  fileName <- gsub(".*\\/", "", fileUrl)
+  fileName <- paste0(dir, "/", fileName)
+  dl <- curl::curl_download(fileUrl, destfile = fileName, mode = "wb",
+                            quiet = TRUE, handle = hhh)
+  writeLines(paste("downloaded", fileName))
+  return(fileName)
+}
 
-# download files
-freadSrv <- function(fileUrl,  user, password) {
+
+# download files with curl & read with data.table
+freadSrv <- function(fileUrl,  dir = "/data/curl_tmp/", user, password) {
   require("curl")
   require("data.table")
-  message("curl MK authing")
+  # message("curl MK authing")
   usPs <-  paste0(user, ":", password)
   hh <- curl::new_handle()
   curl::handle_setopt(
     handle = hh,
     httpauth = 1,
     userpwd = usPs)
-  tempDLdir <- paste0(getwd(), "/data/curl_tmp/")
+  tempDLdir <- paste0(getwd(), dir)
   dir.create(tempDLdir)
   filename <- paste0(tempDLdir, "tmp_", Sys.Date())
   dl <- curl::curl_download(fileUrl, destfile = filename,
