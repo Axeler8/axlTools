@@ -96,10 +96,10 @@ BQdl <- function(SQLtext, project){
   })
 }
 
-BQupload <- function(
-    project = "etalon0919",
-    dt, dataset, table,
-    truncate = FALSE) {
+# chunk upload to BQ around bigRquery
+BQupload <- function(project, dt, dataset, table, truncate = FALSE) {
+  require("bigrquery")
+  require("magrittr")
   # подсчет оптимального объема таблицы для загрузки, пропорционально рабивая по строкам
   # размер объекта - не более 110% от константы BQ ~ 9MB
   max_size <- 9000000 # bytes
@@ -152,12 +152,12 @@ BQupload <- function(
 }
 
 
-# BQupload с партиционированием по указанной колонке с датами\времени.
-# только для новых таблиц!
-BQupload_part <- function(
-    project = "etalon0919",
-    dt, dataset, table, max_size = 9, max_load = 10,
-    truncate = FALSE, part_type = NULL, part_field = NULL) {
+# chunk upload to BQ around bigRquery with params and partition option
+BQupload_part <- function(project, dt, dataset, table,
+                          max_size = 9, max_load = 10,
+                          truncate = FALSE, part_type = NULL, part_field = NULL) {
+  require("bigrquery")
+  require("magrittr")
   # подсчет оптимального объема таблицы для загрузки, пропорционально рабивая по строкам
   # размер объекта - по умолчанию не более 10% от ~ 9MB по умолчанию.
   max_size <- max_size * 1000000 # Mbytes to bytes
@@ -227,6 +227,47 @@ BQupload_part <- function(
       message(paste(Sys.time(), cond))
       return(table)
     })
+  })
+}
+
+# chunked database upload with parameters around DBI
+pstUpload <- function(pstCon, data, tableName, disp_mode = c("append", "rewrite"),
+                      timeout = 1L, max_size = 9L, max_load = 10L) {
+  require("DBI")
+  # подсчет объема одного куска таблицы для загрузки,
+  # кол-во строк от размера объекта
+  # с переметрами превышения (max_load) и размера одного куска (max_size)
+  max_size <- max_size * 1000000 # Mbytes to bytes
+  max_load <- 1 + (max_load / 100) # int percent to float num
+  dt_rows <- nrow(data)
+  size <- object.size(data) %>% as.integer()
+  overload <- size / max_size %>% round()
+  if(overload > max_load) {
+    n_rows <- round(dt_rows / overload)
+    seq_row <- seq.int(1, dt_rows, by = n_rows)
+    if(seq_row[length(seq_row)] < dt_rows) {seq_row <- c(seq_row, dt_rows)}
+  } else {seq_row <- c(1)}
+
+  # remove table if rewrite needed
+  if(disp_mode == "rewrite" & DBI::dbExistsTable(pstCon, tableName)){DBI::dbRemoveTable(pstCon, tableName)}
+  if(!DBI::dbExistsTable(pstCon, tableName)){DBI::dbCreateTable(pstCon, tableName, data[0])}
+
+  # main load
+  db_load <- lapply(1:length(seq_row), function(x){
+    if(x >= length(seq_row) & x > 1) {
+      message(paste(Sys.time(), seq_row[x], "total rows uploaded to", tableName))
+      return(x)} else if (length(seq_row) == 1) {
+        dt_short <- data} else {
+          start <- seq_row[x]
+          end <- (seq_row[x + 1]) - 1
+          if(seq_row[x + 1] == seq_row[length(seq_row)]){end <- seq_row[x + 1]}
+          dt_short <- data[start : end, ] }
+    Sys.sleep(timeout)
+    percent <- paste0(round(nrow(dt_short) / dt_rows * 100L, 1), "%")
+    # print(head(dt_short, 10))
+    DBI::dbWriteTable(pstCon, tableName, dt_short, append = TRUE, row.names = FALSE)
+    message(paste(Sys.time(), nrow(dt_short), "rows uploaded,", percent), appendLF = TRUE)
+    return(nrow(dt_short))
   })
 }
 
