@@ -621,3 +621,14 @@ loadLocal <- function(imgName, mode) {
   # imgFile <- paste0(imgDirMax, "/", list.files(imgDirMax, pattern = ".Rdata"))
   cat(paste("\n loading image", imgFile))
 }
+
+# serialize  & save text data to disk
+saveKey <- function(tokFile = "key.rds") {
+  if(!grepl(".*\\.rds$", tokFile)){tokFile <- paste0(tokFile, ".rds")}
+  tok <- readline("enter the key!\n")
+  cat("\014")
+  saveRDS(tok, tokFile)
+  fullPath <- paste0(getwd(), "/", tokFile)
+  # print(fullPath)
+  return(fullPath)
+}
