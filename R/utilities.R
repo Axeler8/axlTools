@@ -632,3 +632,20 @@ saveKey <- function(tokFile = "key.rds") {
   # print(fullPath)
   return(fullPath)
 }
+
+# # checking for loading option
+# setLoadLocal <- function(...){
+#   a <- commandArgs(trailingOnly = TRUE)
+#   if(length(a) == 0) {
+#     a <- 0
+#       message("Load history image, Y - yes, N - No\n")
+#       a <- tolower(readline(" "))}
+#     if (a == "y"){loadLocal()}
+#     if (a == "n"){cat("\n Not loading image")}
+#   }
+# }
+
+# sys date in digit char format
+getCurDay <- function(...){
+  return(curDay <- Sys.Date() %>% as.integer() %>% as.character())
+}
