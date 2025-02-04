@@ -657,9 +657,9 @@ saveCredsDB <- function(fileName = "creds", path = "keys"){
   cat("\014")
   password <- readline("enter password: ")
   cat("\014")
-  port <- readline("enter pass: ")
+  port <- readline("enter port: ")
   cat("\014")
-  dbCreds <- list(host = "host", "dbname" = dbname,
+  dbCreds <- list("host" = host, "dbname" = dbname,
                   "user" = user, "password" = password,
                   "port" = port)
   fullFile <- paste0(path, "/", fileName, ".rds")
