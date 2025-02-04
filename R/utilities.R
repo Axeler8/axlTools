@@ -622,8 +622,9 @@ loadLocal <- function(imgName, mode) {
   cat(paste("\n loading image", imgFile))
 }
 
-# serialize  & save text data to disk
-saveKey <- function(tokFile = "key.rds") {
+
+# several type-in & save functions to omit showing passes in history
+saveKey <- function(tokFile = "key") {
   if(!grepl(".*\\.rds$", tokFile)){tokFile <- paste0(tokFile, ".rds")}
   tok <- readline("enter the key!\n")
   cat("\014")
@@ -632,6 +633,41 @@ saveKey <- function(tokFile = "key.rds") {
   # print(fullPath)
   return(fullPath)
 }
+
+saveCreds <- function(fileName = "creds.rds", path = "data"){
+  cat("\014")
+  login <- readline("enter login: ")
+  cat("\014")
+  pass <- readline("enter pass: ")
+  cat("\014")
+  res <- list("login" = login, "psw" = pass)
+  fullFile <- paste0(path, "/", fileName)
+  saveRDS(res, fullFile)
+  writeLines(paste0("creds saved to ", getwd(), "/", fullFile))
+  return(res)
+}
+
+saveCredsDB <- function(fileName = "creds", path = "keys"){
+  cat("\014")
+  host <- readline("enter host: ")
+  cat("\014")
+  dbname <- readline("enter dbname: ")
+  cat("\014")
+  user <- readline("enter user: ")
+  cat("\014")
+  password <- readline("enter password: ")
+  cat("\014")
+  port <- readline("enter pass: ")
+  cat("\014")
+  dbCreds <- list(host = "host", "dbname" = dbname,
+                  "user" = user, "password" = password,
+                  "port" = port)
+  fullFile <- paste0(path, "/", fileName, ".rds")
+  saveRDS(dbCreds, fullFile)
+  writeLines(paste0("creds saved to ", getwd(), "/", fullFile))
+  return(dbCreds)
+}
+
 
 # # checking for loading option
 # setLoadLocal <- function(...){
