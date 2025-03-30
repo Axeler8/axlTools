@@ -686,17 +686,19 @@ getCurDay <- function(...){
   return(curDay <- Sys.Date() %>% as.integer() %>% as.character())
 }
 
-# transform arguments to data table, syntax - 'arg=value'
+# transform arguments to data.table, syntax - 'arg=value'
 getArgs <- function(verbose = FALSE){
   require("data.table")
   args <- commandArgs(TRUE)
+  if(length(args) < 1) {
+    message("No arguments passed!")
+    return(NA_character_)}
   if(verbose){print(args)}
-  if(length(args) < 1) {stop("there are no args!")}
   argNames <- gsub("=.*", "", args)
   argValues <- gsub(".*=", "", args)
   argDT <- data.table(rbind(argNames, argValues))
   colnames(argDT) <- argNames
-  argDT <- argDT[-1,]
+  argDT <- argDT[-1]
   argDT
   if(verbose){print(head(argDT))}
   return(argDT)
