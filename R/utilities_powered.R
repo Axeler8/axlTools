@@ -15,7 +15,7 @@
 #' @param part_field Partition column name
 #' @param quiet Suppress progress messages?
 #' @return Invisible list of upload results
-BQupload_part <- function(project, dt, dataset, table,
+uploadBQdata <- function(project, dt, dataset, table,
                           max_size = 9, max_load = 10,
                           truncate = FALSE, part_type = NULL,
                           part_field = NULL, quiet = FALSE) {
@@ -115,7 +115,7 @@ BQupload_part <- function(project, dt, dataset, table,
 #' @examples
 #' dt <- data.table(a = 1:3, b = c("1","2","3"))
 #' colsTypefix(dt, list(num_cols = "a", text_cols = "b"))
-colsTypefix <- function(dt, cols_list) {
+setColsType <- function(dt, cols_list) {
   stopifnot(
     data.table::is.data.table(dt),
     is.list(cols_list),
@@ -152,8 +152,18 @@ colsTypefix <- function(dt, cols_list) {
 
 
 #' Quickly convert column types in a data.table WITH Factor Support ----
-
-colsTypefix <- function(dt, cols_list, ordered_factors = FALSE,
+#' Handles factors, dates, and numeric types with safety checks.
+#' @param dt A `data.table`
+#' @param cols_list List like `list(factor_cols = "gender", date_cols = "birthday")`
+#' @param ordered_factors If `TRUE`, creates ordered factors
+#' @param factor_levels Custom levels (e.g., `list(priority = c("low", "high"))`)
+#' @export
+#' @examples
+#' dt <- data.table(id = 1:3, status = c("A", "B", "A"))
+#' colsTypefix(dt, list(factor_cols = "status"))
+#' levels(dt$status)  # Returns "A", "B"
+#'
+setColsType_factor <- function(dt, cols_list, ordered_factors = FALSE,
                         factor_levels = NULL, drop_unused_levels = TRUE) {
   stopifnot(
     data.table::is.data.table(dt),
@@ -214,24 +224,22 @@ colsTypefix <- function(dt, cols_list, ordered_factors = FALSE,
 }
 
 
-#' Fetch and Read Google Drive Files ----
+#' Fetch Files from Google Drive with Auto-Select
 #'
-#' @param file_pattern Pattern to search for in Google Drive
-#' @param key_path Path to service account JSON key file
-#' @param key_file Name of the JSON key file
-#' @param data_path Local path to save downloaded files
-#' @param read_file Should the file be read into memory? (TRUE/FALSE)
-#' @param max_days_old Maximum age of file in days to consider valid (NULL to ignore)
-#' @param n_skip Number of lines to skip when reading (passed to fread)
-#' @param default_id Fallback Drive ID if pattern matches fail
-#' @param verbose Print progress messages? (TRUE/FALSE)
-#' @return Either the file path or a data.table, depending on read_file
+#' @param filePattern Regex pattern (e.g., "*.csv")
+#' @param keyFile Path to service account JSON
+#' @param autoSelect "newest" (default), "oldest", or "first"
+#' @return A `data.table` or file path
+#' @export
 #' @examples
-#' # Basic usage
-#' data <- drive_fetch_read("data_goods_new.csv",
-#'                         key_path = "keys/",
-#'                         key_file = "57.json")
+#' \dontrun{
+#' # Download newest matching CSV
+#' data <- fetchDriveData("sales_*.csv", keyFile = "keys/my_project.json")
 #'
+#' # Get oldest file and skip if exists
+#' path <- fetchDriveData("logs_*.txt", keyFile = "keys/my_project.json",
+#'                       autoSelect = "oldest", readFile = FALSE)
+#' }
 fetchDriveData <- function(filePattern = NULL, id = NULL, keyFile, keyPath = "keys/",
                            dataPath = "data/", readFile = TRUE, autoSelect = "newest",
                            checkMetadata = TRUE, verbose = TRUE,
@@ -412,7 +420,7 @@ my_lapply <- function(X, FUN, ...) {
 #' # For command: Rscript script.R seed=42 debug=TRUE title="My Analysis"
 #' # args <- getArgs()
 #'
-getArgs <- function(convert_types = TRUE) {
+getArgs2 <- function(convert_types = TRUE) {
   args <- commandArgs(trailingOnly = TRUE)
   if (!length(args)) return(NULL)
 
