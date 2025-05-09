@@ -74,7 +74,14 @@ compareCols <- function (dt1, dt2) {
   return(res)
 }
 
-# paste with sys.time!
+# ' Timestamped Messages for Debugging
+#'
+#' @param ... Strings to paste with timestamp
+#' @return A string like "[2024-05-21 14:30:00] your_message"
+#' @export
+#' @examples
+#' STpaste("File loaded")  # Returns "[2024-05-21 14:30:00] File loaded"
+#'
 STpaste <- function(...){
   msg <- paste(Sys.time(), ...)
   return(msg)
@@ -550,11 +557,11 @@ sendLogs_mini <- function(theMessage, vocal = FALSE,
   return(msg)
 }
 
-# paste with time stamp
-TSpaste <- function(...){
-  msg <- as.character(paste(Sys.time(), ...))
-  return(msg)
-}
+
+#' @rdname STPaste
+#' @export
+TSpaste <- STpaste  # Alias for backward compatibility
+
 
 # round and convert to integer
 roundIntFix <- function(n, latinFix = TRUE) {
