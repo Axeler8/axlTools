@@ -793,3 +793,30 @@ yadirAuthNew <- function (Login = getOption("ryandexdirect.user"), NewUser = FAL
   }
   return(token)
 }
+
+# look for & sub patterns in texts
+seekPattern <- function(texts, patterns) {
+  require("data.table")
+  texts <- as.character(texts)
+  patterns <- as.character(patterns)
+  data.table::setDT(list(
+    sapply(texts, function(word) {
+      for (p in patterns) {
+        match <- regmatches(word, regexpr(p, word))
+        if (length(match) > 0) return(match[[1]])  # pick 1st
+      }
+      NA_character_  # No matches
+    })
+  ))
+}
+
+# read google sheet wrapper
+fetchSheet <- function(gs4Key, sheet_key, sheet, colTypes = "c") {
+  require("googlesheets4")
+  require("data.table")
+  gs4_auth(path = gs4Key)
+  gsSheet <-  googlesheets4::gs4_get(sheet_key)
+  dt <- googlesheets4::as_sheets_id(sheet_key) |>
+    googlesheets4::read_sheet(sheet, col_types = colTypes) |>
+    as.data.table()
+}

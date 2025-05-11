@@ -438,3 +438,40 @@ getArgs2 <- function(convert_types = TRUE) {
 
   values
 }
+
+# message with time stamp (to debug, mainly)
+debugLog <- function(..., verbose = TRUE) {
+  if (verbose) {
+    msg <- paste(Sys.time(), "🦝 DEBUG:", ...)
+    message(msg)  # Forces output to console
+  }
+  invisible(NULL)  # No return value (pure side-effect)
+}
+
+# look for & sub patterns in texts
+extractDtFirstMatch <- function(texts, patterns, verbose = FALSE) {
+  # Coercion logging
+  if (!is.character(texts)) {
+    debugLog("Coercing texts from class: ", class(texts)[1], " → character", verbose = verbose)
+    texts <- as.character(texts)
+  }
+
+  if (!is.character(patterns)) {
+    debugLog("Coercing patterns from class: ", class(patterns)[1], " → character", verbose = verbose)
+    patterns <- as.character(patterns)
+  }
+
+  # Core logic
+  result <- data.table::setDT(list(
+    sapply(texts, function(word) {
+      for (p in patterns) {
+        match <- regmatches(word, regexpr(p, word))
+        if (length(match) > 0) return(match[[1]])
+      }
+      NA_character_
+    })
+  ))
+
+  debugLog("Result: ", nrow(result), " rows, ", sum(is.na(result[[1]])), " NAs", verbose = verbose)
+  result
+}
