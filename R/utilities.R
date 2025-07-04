@@ -869,14 +869,14 @@ runPG <- function(tableName, mode = c("read", "write")) {
   }
 }
 
-
 # combined read\write fun explicit
-runPG2 <- function(credFile, tableName, mode = c("read", "rewrite", "append")) {
+runPG2 <- function(credFile, dt = NULL, tableName,
+                   mode = c("read", "rewrite", "append")) {
   require("DBI")
   require("RPostgreSQL")
   require("data.table")
   # READ CREDS
-  authList <- readRDS(credFile)
+  dbcreds <- readRDS(credFile)
   # connect
   con <- DBI::dbConnect(
     drv = RPostgreSQL::PostgreSQL(),
@@ -886,15 +886,14 @@ runPG2 <- function(credFile, tableName, mode = c("read", "rewrite", "append")) {
     password = dbcreds$password,
     port = dbcreds$port)
   # READ
-  if(mode == "read"){
-    dt <- as.data.table(dbReadTable(con, tableName))
+  if(mode == "read") {
+    userDT <- as.data.table(dbReadTable(con, tableName))
     dbDisconnect(con)
     return(userDT)
-  # WRITE
-    } else {
-      overwrite <- mode == "rewrite"
-      userDT <- dbWriteTable(con, tableName, overwrite = overwrite)
-      dbDisconnect(con)
-      return(paste(tableName, "written to PG"))
-    }
+    # WRITE
+  } else {
+    userDT <- pstUpload(con, dt, tableName, disp_mode = mode)
+    dbDisconnect(con)
+    return(paste(tableName, "written to PG"))
+  }
 }
