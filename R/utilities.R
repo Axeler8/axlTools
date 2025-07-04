@@ -257,7 +257,7 @@ pstUpload <- function(pstCon, data, tableName, disp_mode = c("append", "rewrite"
 
   # remove table if rewrite needed
   if(disp_mode == "rewrite" & DBI::dbExistsTable(pstCon, tableName)){DBI::dbRemoveTable(pstCon, tableName)}
-  if(!DBI::dbExistsTable(pstCon, tableName)){DBI::dbCreateTable(pstCon, tableName, data[0], row.names = FALSE)}
+  # if(!DBI::dbExistsTable(pstCon, tableName)){DBI::dbCreateTable(pstCon, tableName, data[0])}
 
   # main load
   db_load <- lapply(1:length(seq_row), function(x){
