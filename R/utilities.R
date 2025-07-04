@@ -257,7 +257,7 @@ pstUpload <- function(pstCon, data, tableName, disp_mode = c("append", "rewrite"
 
   # remove table if rewrite needed
   if(disp_mode == "rewrite" & DBI::dbExistsTable(pstCon, tableName)){DBI::dbRemoveTable(pstCon, tableName)}
-  if(!DBI::dbExistsTable(pstCon, tableName)){DBI::dbCreateTable(pstCon, tableName, data[0])}
+  if(!DBI::dbExistsTable(pstCon, tableName)){DBI::dbCreateTable(pstCon, tableName, data[0], row.names = FALSE)}
 
   # main load
   db_load <- lapply(1:length(seq_row), function(x){
@@ -871,39 +871,30 @@ runPG <- function(tableName, mode = c("read", "write")) {
 
 
 # combined read\write fun explicit
-runPG <- function(tableName, mode = c("read", "write")) {
-    # READ CREDS
-    readCreds <- function(credFileName = "sscdbcreds.rds", dir){
-      authList <- readRDS(paste0(dir, "/", credFileName))
-      return(authList)
-    }
-    dbcreds <- readCreds(dir = keyPath)
-
-    # AUTH FUN
-    conPG <- function(dbcreds, ...) {
-      require("DBI")
-      require("RPostgreSQL")
-      con <- DBI::dbConnect(
-        drv = RPostgreSQL::PostgreSQL(),
-        host = dbcreds$host,
-        dbname = dbcreds$dbname,
-        user = dbcreds$user,
-        password = dbcreds$password,
-        port = dbcreds$port
-      )
-      return(con)
-    }
-    # CONNECT
-    con <- conPG(dbcreds)
-    # READ
-    if(mode == "read"){
-      userDT <- dbReadTable(con, tableName) %>% as.data.table()
-      dbDisconnect(con)
-      return(userDT)
+runPG2 <- function(credFile, tableName, mode = c("read", "rewrite", "append")) {
+  require("DBI")
+  require("RPostgreSQL")
+  require("data.table")
+  # READ CREDS
+  authList <- readRDS(credFile)
+  # connect
+  con <- DBI::dbConnect(
+    drv = RPostgreSQL::PostgreSQL(),
+    host = dbcreds$host,
+    dbname = dbcreds$dbname,
+    user = dbcreds$user,
+    password = dbcreds$password,
+    port = dbcreds$port)
+  # READ
+  if(mode == "read"){
+    dt <- as.data.table(dbReadTable(con, tableName))
+    dbDisconnect(con)
+    return(userDT)
+  # WRITE
     } else {
-      userDT <- dbWriteTable(con, tableName) %>% as.data.table()
+      overwrite <- mode == "rewrite"
+      userDT <- dbWriteTable(con, tableName, overwrite = overwrite)
       dbDisconnect(con)
       return(paste(tableName, "written to PG"))
     }
 }
-
