@@ -820,3 +820,90 @@ fetchSheet <- function(gs4Key, sheet_key, sheet, colTypes = "c") {
     googlesheets4::read_sheet(sheet, col_types = colTypes) |>
     as.data.table()
 }
+
+
+# PostGre DBI wrappers ----
+# local creds
+readCreds <- function(credFileName = "sscdbcreds.rds", dir){
+  authList <- readRDS(paste0(dir, "/", credFileName))
+  return(authList)
+}
+
+# AUTH
+conPG <- function(dbcreds, ...) {
+  require("DBI")
+  require("RPostgreSQL")
+  con <- DBI::dbConnect(
+    drv = RPostgreSQL::PostgreSQL(),
+    host = dbcreds$host,
+    dbname = dbcreds$dbname,
+    user = dbcreds$user,
+    password = dbcreds$password,
+    port = dbcreds$port
+  )
+  return(con)
+}
+
+# combined read\write fun
+
+# !!!
+# - добавить append\rewrite
+# - подключить chunk функцию
+# !!!
+runPG <- function(tableName, mode = c("read", "write")) {
+  require("DBI")
+  require("RPostgreSQL")
+  # READ CREDS
+  dbcreds <- readCreds(dir = keyPath)
+  # CONNECT
+  con <- conPG(dbcreds)
+  # READ
+  if(mode == "read"){
+    userDT <- DBI::dbReadTable(con, tableName) %>% as.data.table()
+    DBI::dbDisconnect(con)
+    return(userDT)
+  } else {
+    userDT <- DBI::dbWriteTable(con, tableName) %>% as.data.table()
+    DBI::sdbDisconnect(con)
+    return(paste(tableName, "written to PG"))
+  }
+}
+
+
+# combined read\write fun explicit
+runPG <- function(tableName, mode = c("read", "write")) {
+    # READ CREDS
+    readCreds <- function(credFileName = "sscdbcreds.rds", dir){
+      authList <- readRDS(paste0(dir, "/", credFileName))
+      return(authList)
+    }
+    dbcreds <- readCreds(dir = keyPath)
+
+    # AUTH FUN
+    conPG <- function(dbcreds, ...) {
+      require("DBI")
+      require("RPostgreSQL")
+      con <- DBI::dbConnect(
+        drv = RPostgreSQL::PostgreSQL(),
+        host = dbcreds$host,
+        dbname = dbcreds$dbname,
+        user = dbcreds$user,
+        password = dbcreds$password,
+        port = dbcreds$port
+      )
+      return(con)
+    }
+    # CONNECT
+    con <- conPG(dbcreds)
+    # READ
+    if(mode == "read"){
+      userDT <- dbReadTable(con, tableName) %>% as.data.table()
+      dbDisconnect(con)
+      return(userDT)
+    } else {
+      userDT <- dbWriteTable(con, tableName) %>% as.data.table()
+      dbDisconnect(con)
+      return(paste(tableName, "written to PG"))
+    }
+}
+
