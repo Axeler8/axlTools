@@ -897,3 +897,10 @@ runPG2 <- function(credFile, dt = NULL, tableName,
     return(paste(tableName, "written to PG"))
   }
 }
+
+# loading latest source files from github
+# in case of outdated package
+getLibSource <- function() {
+  source("https://raw.githubusercontent.com/Axeler8/axlTools/refs/heads/main/R/utilities.R")
+  source("https://raw.githubusercontent.com/Axeler8/axlTools/refs/heads/main/R/utilities_powered.R")
+}

@@ -299,9 +299,9 @@ fetchDriveData <- function(filePattern = NULL, id = NULL, keyFile, keyPath = "ke
       "  ID: ", resource$id, "\n",
       "  Created: ", createdTime, "\n",
       "  Modified: ", modifiedTime, "\n",
-      "  Size: ", format(structure(as.numeric(resource$size), class = "object_size"), "\n",
-                         "  Owner: ", resource$owners[[1]]$displayName
-      )))
+      "  Size: ", format(structure(as.numeric(resource$size), class = "object_size")), "\n",
+      "  Owner: ", resource$owners[[1]]$displayName
+    ))
   }
 
   # --- 6. Conflict Resolution & Download ---
@@ -364,7 +364,6 @@ fetchDriveData <- function(filePattern = NULL, id = NULL, keyFile, keyPath = "ke
     localPath
   }
 }
-
 
 
 
