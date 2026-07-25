@@ -571,15 +571,19 @@ roundIntFix <- function(n, latinFix = TRUE) {
   n <- as.numeric(n)
   n <- round(n, digits = 0)
   n <- as.integer(n)
-  return(n)}
+  return(n)
+}
 
-# filling down the NAs
-# # !!! NOT WORIKNG !!!
-# nafillChar <- function(value, type = "locf"){
-#   require("data.table")
-#   value = value[data.table::nafill(base::replace(.I, is.na(value), NA), type = type)]
-#   return(value)
-# }
+# same round to numeric
+roundNumFix <- function(n, decc = 1, latinFix = TRUE) {
+  n <- gsub("\\,", "\\.", n)
+  if(latinFix){n <- iconv(n, "latin1", "ASCII", sub = "")}
+  n <- gsub("\\s+", "", n)
+  n <- as.numeric(n)
+  n <- round(n, digits = decc)
+  return(n)
+}
+
 
 # flattening nested lists to text jsons - modern version
 fltJSON_list <- function(list, toChar = TRUE){
@@ -903,4 +907,12 @@ runPG2 <- function(credFile, dt = NULL, tableName,
 getLibSource <- function() {
   source("https://raw.githubusercontent.com/Axeler8/axlTools/refs/heads/main/R/utilities.R")
   source("https://raw.githubusercontent.com/Axeler8/axlTools/refs/heads/main/R/utilities_powered.R")
+}
+
+
+# extract last day of month, vectorized
+endOfMonth <- function(date) {
+  y <- lapply(1:length(date), function(x){
+    endd <- seq(date[[x]], by = paste(1, "months"), length = 2)[2] - 1
+  }) |> unlist() |> as.Date()
 }
