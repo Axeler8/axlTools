@@ -1,6 +1,5 @@
 # ----
-# These functions were created & modified with the assistance of mighty DeepSeek AI
-# (https://www.deepseek.com)
+# created & modified w AI assistance (DS, google, claude)
 # ----
 
 
@@ -474,3 +473,43 @@ extractDtFirstMatch <- function(texts, patterns, verbose = FALSE) {
   debugLog("Result: ", nrow(result), " rows, ", sum(is.na(result[[1]])), " NAs", verbose = verbose)
   result
 }
+
+
+getScriptName <- function(var_name = "scriptName") {
+  # sys.nframe() показывает текущую глубину стека вызовов
+  # Мы перебираем все уровни от текущего (sys.nframe()) обратно до 0 (GlobalEnv)
+  for (i in seq(sys.nframe(), 0, by = -1)) {
+    env <- sys.frame(i)
+    if (exists(var_name, envir = env, inherits = FALSE)) {
+      return(get(var_name, envir = env, inherits = FALSE))
+    }
+  }
+
+  # Если в стеке вызовов не нашли, делаем финальную проверку в GlobalEnv и далее (на случай, если запустили из консоли)
+  if (exists(var_name, envir = .GlobalEnv, inherits = TRUE)) {
+    return(get(var_name, envir = .GlobalEnv, inherits = TRUE))
+  }
+
+  stop(paste("Переменная", var_name, "не найдена ни на одном уровне вызова."))
+}
+
+# outer_func <- function() {
+#   ScriptName <- "МойСкрипт_Успех"  # Переменная запрятана здесь
+#
+#   middle_func <- function() {
+#     # Запускаем lapply с анонимной функцией
+#     lapply(1:1, function(x) {
+#       # Глубокий вызов нашей поисковой функции
+#       get_script_name("ScriptName")
+#     })
+#   }
+#
+#   middle_func()
+# }
+#
+# # Тестируем
+# result <- outer_func()
+# print(result[[1]])
+# # Выведет: [1] "МойСкрипт_Успех"
+#
+
