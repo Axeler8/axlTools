@@ -442,6 +442,26 @@ sendLogs_short <- function(theMessage, vocal = FALSE,
   return(msg)
 }
 
+# data flattens latest ----
+fltNst <- function(x, auto_unbox = TRUE, verbose = FALSE, ...) {
+  if (verbose) {str(x, 2)}
+  if (length(x) > 1 || is.list(x)) {
+    return(as.character(jsonlite::toJSON(x, auto_unbox = auto_unbox, ...)))
+  } else {return(x)}
+}
+# each element applied
+fltNst_list <- function(list, verbose = FALSE, ...) {
+  res <- lapply(list, fltNst, verbose = verbose)
+  dt <- rbindlist(list(res))
+  return(dt)
+}
+# list of elements applied
+fltNst_listNst <- function(list_nest, verbose = FALSE, ...) {
+  dt_flat <- lapply(list_nest, fltNst_list, verbose = verbose) %>% rbindlist(fill = TRUE)
+  dt_flat[, item_name := names(list_nest)]
+  return(dt_flat)
+}
+
 
 # turn nested cells into a text json
 my2json <- function(x){
@@ -849,29 +869,24 @@ conPG <- function(dbcreds, ...) {
 }
 
 # combined read\write fun
-
-# !!!
-# - добавить append\rewrite
-# - подключить chunk функцию
-# !!!
-runPG <- function(tableName, mode = c("read", "write")) {
-  require("DBI")
-  require("RPostgreSQL")
-  # READ CREDS
-  dbcreds <- readCreds(dir = keyPath)
-  # CONNECT
-  con <- conPG(dbcreds)
-  # READ
-  if(mode == "read"){
-    userDT <- DBI::dbReadTable(con, tableName) %>% as.data.table()
-    DBI::dbDisconnect(con)
-    return(userDT)
-  } else {
-    userDT <- DBI::dbWriteTable(con, tableName) %>% as.data.table()
-    DBI::sdbDisconnect(con)
-    return(paste(tableName, "written to PG"))
-  }
-}
+# runPG <- function(tableName, mode = c("read", "write")) {
+#   require("DBI")
+#   require("RPostgreSQL")
+#   # READ CREDS
+#   dbcreds <- readCreds(dir = keyPath)
+#   # CONNECT
+#   con <- conPG(dbcreds)
+#   # READ
+#   if(mode == "read"){
+#     userDT <- DBI::dbReadTable(con, tableName) %>% as.data.table()
+#     DBI::dbDisconnect(con)
+#     return(userDT)
+#   } else {
+#     userDT <- DBI::dbWriteTable(con, tableName) %>% as.data.table()
+#     DBI::sdbDisconnect(con)
+#     return(paste(tableName, "written to PG"))
+#   }
+# }
 
 # combined read\write fun explicit
 runPG2 <- function(credFile, dt = NULL, tableName,
@@ -916,3 +931,186 @@ endOfMonth <- function(date) {
     endd <- seq(date[[x]], by = paste(1, "months"), length = 2)[2] - 1
   }) |> unlist() |> as.Date()
 }
+
+# combined read\write\query fun
+runPG3 <- function(credFile, tableName = NULL, dt = NULL,  query = NexULL,
+                   mode = c("read", "rewrite", "append", "delete", "query")) {
+
+  invisible(lapply(c("DBI", "RPostgreSQL", "data.table" ,"axlTools"), library, character.only = TRUE))
+  # auth
+  dbcreds <- readRDS(credFile)
+  con <- conPG(dbcreds)
+  # method switch
+  if (mode == "read") {
+    if(!dbExistsTable(con, tableName)) {
+      res <- paste0("ERROR: ", tableName, " not found for reading")
+    } else {
+      userDT <- as.data.table(dbReadTable(con, tableName))
+      res <- userDT
+      }
+
+  } else if (mode == "delete") {
+    if(!dbExistsTable(con, tableName)){
+      res <- paste0("ERROR: ", tableName, "not found to delete")
+    } else {
+      dbRemoveTable(con, tableName)
+      res <- paste0(tableName, ' deleted')
+    }
+
+  } else if (mode == "query") {
+    if(is.null(query)) {
+      res <- paste0("ERROR: SQL query required")
+    } else {
+       dt <- dbGetQuery(con, query)
+       if (nrow(dt) < 1 ) {
+         res <- paste0("0 rows for query: ", query)
+       } else {
+         res <- dt
+  }}
+
+  } else if (mode %in% c("rewrite", "append")) {
+    userDT <- pstUpload(con, dt, tableName, disp_mode = mode)
+    res <- paste0(tableName, " written to PG")
+
+  } else {
+    res <- paste0("ERROR: ", mode, " - WRONG MODE! Pick one: ", c("read", "rewrite", "append", "delete", "query"))
+  }
+  dbDisconnect(con)
+
+  if (res %ilike% 'error'){stop(res)}
+  paste("Successfuly did", mode, "on", fifelse(!is.null(tableName), tableName, query)) %>% sendLogs_mini()
+  return(res)
+
+}
+
+runPG <- runPG3
+
+
+# mass package load with check ----
+requireList <- function(req_lib = c(
+  "curl",
+  "jsonlite",
+  "data.table",
+  "magrittr")) {
+  check_lib <- lapply(req_lib, require, character.only = TRUE) |> unlist()
+  if(any(!check_lib)) {
+    stop(paste0(Sys.time(),
+                req_lib[!check_lib], " - package not found. Stopping"))}
+  sendLogs_mini(paste(paste0(req_lib[check_lib], collapse = ", "), "- libs loaded"))
+  return(req_lib[check_lib])
+}
+
+# requireList(c("jsonlite",
+#               "data.table",
+#               "афда"))
+
+
+
+# get objects from parent env
+createExportList <- function(obj_names, envir = parent.frame()) {
+  lapply(obj_names, get, envir = envir)
+}
+
+
+# log message variant
+sendMsg <- function(text, scriptName = NULL) {
+  # Get script name with multiple fallbacks
+  script <- scriptName %||%
+    tryCatch(get("scriptName", envir = parent.frame()), error = function(e) NULL) %||%
+    tryCatch(get("scriptName", envir = .GlobalEnv), error = function(e) NULL) %||%
+    Sys.getenv("R_SCRIPT_NAME") %||%
+    "UNNAMED_SCRIPT"
+
+  if(length(text) > 1) {text <- paste(text, collapse = "||")}
+  message(paste(Sys.time(), script, text, sep = "|"))
+}
+
+
+
+# column type adjust for data table | variant
+setTypes <- function(dt, cols_list) {
+  stopifnot(data.table::is.data.table(dt), is.list(cols_list),
+            !is.null(names(cols_list)))
+  type_handlers <- list(text_cols = as.character, date_cols = as.Date,
+                        num_cols = as.numeric, logic_cols = as.logical, int_cols = as.integer,
+                        double_cols = as.double)
+  missing_cols <- setdiff(unlist(cols_list), names(dt))
+  if (length(missing_cols)) {
+    warning("Missing columns: ", paste(missing_cols, collapse = ", "))
+    cols_list <- lapply(cols_list, function(x) intersect(x,
+                                                         names(dt)))
+  }
+  for (type in names(type_handlers)) {
+    if (!is.null(cols_list[[type]])) {
+      dt[, `:=`((cols_list[[type]]), lapply(.SD, type_handlers[[type]])),
+         .SDcols = cols_list[[type]]]
+    }
+  }
+  invisible(dt)
+}
+
+
+# add spaces to make strings equal
+alignString <- function(x, n_space = 0, verbose = FALSE){
+  lns <- nchar(x)
+  longest <- (max(lns, na.rm = T)) + n_space
+  dlt <- longest - lns
+  if(verbose){print(dlt)}
+  spaces <- lapply(dlt, function(xx){
+    if(is.na(xx)){xx <- 0}
+    rep(" ", xx) %>% paste0(collapse = "") %>% as.character()
+  }) %>% unlist()
+  final_vector <- paste0(x, spaces)
+}
+
+
+
+# split long strings
+truncateString <- function(x, max_length = 41, min_length = 5,
+                           split = c("/", ".", " ", ",")) {
+  # core func
+  truncate <- function(input) {
+    # skip if within limit
+    if (nchar(input) <= max_length) {return(input)}
+    string_length <- nchar(input)
+    # get split positions
+    break_positions <- unlist(lapply(seq_len(string_length), function(i) {
+      char <- substr(input, i, i)
+      if (char %in% split) {return(i)}
+      return(NULL)}))
+    # use max (right) break point
+    cut_position <- max(break_positions[break_positions <= max_length], na.rm = TRUE)
+    # minimum length check
+    if (cut_position < min_length) {cut_position <- min_length}
+    # output
+    truncated_string <- paste0(substr(input, 1, cut_position), "\n",
+                               substr(input, cut_position + 1, nchar(input)))
+
+    return(truncated_string)
+  }
+  # vectorize core func
+  result <- lapply(x, truncate) |> unlist()
+  return(result)
+}
+
+
+# get names of week eng & ru
+getWeekDays <- function(the_date = '2026-10-05', cyrillic = TRUE) {
+  # format шы always "%Y-%M-%D"
+  require("data.table")
+  the_date = as.Date(the_date)
+  if(is.na(the_date)){stop("wrong date format, %Y-%M-%D required")}
+  wkd_dt <- data.table(n_weekday = 1:7)
+  wkd_dt[, weekday := weekdays(the_date + 0:6)]
+  if(cyrillic) {
+    Sys.setlocale("LC_ALL", "ru_RU.UTF-8")
+    wkd_dt[, weekday_ru := weekdays(the_date + 0:6)]
+    Sys.setlocale("LC_ALL", "en_US.UTF-8")
+  }
+  return(wkd_dt)
+}
+
+
+
+
+
