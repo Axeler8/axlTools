@@ -983,7 +983,66 @@ runPG3 <- function(credFile, tableName = NULL, dt = NULL,  query = NexULL,
 
 }
 
-runPG <- runPG3
+# DBI WRAPPER FOR Postgre----
+# latest ver
+runPG4 <- function(credFilePath, tableName = NULL, dt = NULL, query = NULL,
+                   mode = c("read", "rewrite", "append", "delete", "query")) {
+  mode <- match.arg(mode)
+  # ARGS CHECK
+  if(!file.exists(credFilePath)){stop(paste("cred file not found:", credFilePath))}
+  if(mode == "query" && is.null(query)) { stop("SQL query required") }
+  if(mode != "query" && is.null(tableName)) { stop(paste("tableName required to", mode)) }
+  if(mode %in% c("rewrite", "append") && is.null(dt)) {stop(paste("data table\frame required as dt for", mode))}
+  if(!is.null(dt) && !is.data.frame(dt)){stop(paste("dt arg must be of data table\frame class"))}
+  # open & close db connection
+  the_con <- conPG(readRDS(credFilePath))
+  on.exit(dbDisconnect(the_con), add = TRUE)
+  # RUN
+  res <- switch(
+    mode,
+    read = {
+      if(!dbExistsTable(the_con, tableName)) {stop(paste("ERROR! Table", tableName, "not found"))}
+      as.data.table(dbReadTable(the_con, tableName))
+    },
+    delete = {
+      if(!dbExistsTable(the_con, tableName)) {stop(paste("ERROR! Table", tableName, "not found"))}
+      dbRemoveTable(the_con, tableName)
+      paste0(tableName, " deleted")
+    },
+    query = {
+      dt <- dbGetQuery(the_con, query)
+      if (nrow(dt) == 0) {warning("0 rows returned")}
+      dt
+    },
+    rewrite =, append = {
+      pstUpload(the_con, dt, tableName, disp_mode = mode)
+      paste0(tableName, " written to PG")
+    })
+  # Log
+  paste("Successful", mode, "-", ifelse(!is.null(tableName), tableName, query)) %>%
+    sendMsg()
+  return(res)
+}
+
+runPG <- runPG4
+
+# Dynamic args list injection
+makePGfun <- function(mode) {
+  force(mode)
+
+  function(...) {
+    args <- list(...)
+    args$mode <- mode
+    do.call(runPG4, args)
+  }
+}
+
+# shortcuts for conv-e
+readPG <- makePGfun("read")
+deletePG <- makePGfun("delete")
+appendPG <- makePGfun("append")
+queryPG <- makePGfun("query")
+rewritePG <- makePGfun("rewrite")
 
 
 # mass package load with check ----
@@ -991,19 +1050,15 @@ requireList <- function(req_lib = c(
   "curl",
   "jsonlite",
   "data.table",
-  "magrittr")) {
-  check_lib <- lapply(req_lib, require, character.only = TRUE) |> unlist()
+  "magrittr"),
+  quiet = TRUE, verbose = FALSE) {
+  check_lib <- lapply(req_lib, require, character.only = TRUE, quiet = quiet, verbose = verbose) |> unlist()
   if(any(!check_lib)) {
     stop(paste0(Sys.time(),
                 req_lib[!check_lib], " - package not found. Stopping"))}
   sendLogs_mini(paste(paste0(req_lib[check_lib], collapse = ", "), "- libs loaded"))
   return(req_lib[check_lib])
 }
-
-# requireList(c("jsonlite",
-#               "data.table",
-#               "афда"))
-
 
 
 # get objects from parent env
@@ -1026,28 +1081,51 @@ sendMsg <- function(text, scriptName = NULL) {
 }
 
 
-
-# column type adjust for data table | variant
-setTypes <- function(dt, cols_list) {
-  stopifnot(data.table::is.data.table(dt), is.list(cols_list),
-            !is.null(names(cols_list)))
-  type_handlers <- list(text_cols = as.character, date_cols = as.Date,
-                        num_cols = as.numeric, logic_cols = as.logical, int_cols = as.integer,
-                        double_cols = as.double)
-  missing_cols <- setdiff(unlist(cols_list), names(dt))
-  if (length(missing_cols)) {
-    warning("Missing columns: ", paste(missing_cols, collapse = ", "))
-    cols_list <- lapply(cols_list, function(x) intersect(x,
-                                                         names(dt)))
+# Dynamic columns type enforcer ----
+setColsType <- function(dt, ...) {
+  # data.table-aware env
+  if (!data.table::is.data.table(dt)) {
+    stop("dt must be a data.table")
   }
-  for (type in names(type_handlers)) {
-    if (!is.null(cols_list[[type]])) {
-      dt[, `:=`((cols_list[[type]]), lapply(.SD, type_handlers[[type]])),
-         .SDcols = cols_list[[type]]]
+  # shortcuts for main type funcs
+  type_handlers <- list(
+    text    = as.character,
+    date    = as.Date,
+    posix   = as.POSIXct,
+    num     = as.numeric,
+    logic   = as.logical,
+    int     = as.integer,
+    double  = as.double
+  )
+  # process main & additional args
+  args <- list(...)
+  type_names <- names(type_handlers)
+  cols_list  <- args[names(args) %in% type_names]
+  extra_args <- args[!names(args) %in% type_names] # Например: list(format = "%Y-%m-%d")
+  if (length(cols_list) == 0) {stop("At least 1 type expected: text, date, posix, num, logic, int, double)")}
+  # columns presence check
+  all_requested_cols <- unlist(cols_list)
+  missing_cols <- setdiff(all_requested_cols, colnames(dt))
+  if (length(missing_cols)) {
+    warning("Missing columns in dt: ", paste(missing_cols, collapse = ", "))
+    cols_list <- lapply(cols_list, function(x) intersect(x, names(dt)))
+  }
+  # use "for" with reference operator `:=`
+  for (type in names(cols_list)) {
+    target_cols <- cols_list[[type]]
+    if (length(target_cols) > 0) {
+      handler <- type_handlers[[type]]
+      # but use do.call inside dt for main and additional args
+      dt[, (target_cols) := lapply(.SD, function(x) {
+        do.call(handler, c(list(x), extra_args))
+      }), .SDcols = target_cols]
     }
   }
   invisible(dt)
 }
+
+# alias
+setTypes <- setColsType
 
 
 # add spaces to make strings equal
@@ -1109,8 +1187,5 @@ getWeekDays <- function(the_date = '2026-10-05', cyrillic = TRUE) {
   }
   return(wkd_dt)
 }
-
-
-
 
 
