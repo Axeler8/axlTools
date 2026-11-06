@@ -106,121 +106,121 @@ uploadBQdata <- function(project, dt, dataset, table,
 
 
 
-#' Quickly convert column types in a data.table ----
+#' #' Quickly convert column types in a data.table ----
+#' #'
+#' #' @param dt A data.table
+#' #' @param cols_list Named list of vectors (e.g., list(text_cols = c("col1","col2")))
+#' #' @return The modified data.table (by reference)
+#' #' @examples
+#' #' dt <- data.table(a = 1:3, b = c("1","2","3"))
+#' #' colsTypefix(dt, list(num_cols = "a", text_cols = "b"))
+#' setColsType <- function(dt, cols_list) {
+#'   stopifnot(
+#'     data.table::is.data.table(dt),
+#'     is.list(cols_list),
+#'     !is.null(names(cols_list)))
 #'
-#' @param dt A data.table
-#' @param cols_list Named list of vectors (e.g., list(text_cols = c("col1","col2")))
-#' @return The modified data.table (by reference)
-#' @examples
-#' dt <- data.table(a = 1:3, b = c("1","2","3"))
-#' colsTypefix(dt, list(num_cols = "a", text_cols = "b"))
-setColsType <- function(dt, cols_list) {
-  stopifnot(
-    data.table::is.data.table(dt),
-    is.list(cols_list),
-    !is.null(names(cols_list)))
-
-    # Conversion handlers
-    type_handlers <- list(
-      text_cols = as.character,
-      date_cols = as.Date,
-      num_cols = as.numeric,
-      logic_cols = as.logical,
-      int_cols = as.integer,
-      double_cols = as.double
-    )
-
-    # Validate column existence first
-    missing_cols <- setdiff(unlist(cols_list), names(dt))
-    if (length(missing_cols)) {
-      warning("Missing columns: ", paste(missing_cols, collapse = ", "))
-      cols_list <- lapply(cols_list, function(x) intersect(x, names(dt)))
-    }
-
-    # Apply conversions
-    for (type in names(type_handlers)) {
-      if (!is.null(cols_list[[type]])) {
-        dt[, (cols_list[[type]]) := lapply(.SD, type_handlers[[type]]),
-           .SDcols = cols_list[[type]]]
-      }
-    }
-
-    invisible(dt)  # Return silently (modifies by reference anyway)
-}
-
-
-
-#' Quickly convert column types in a data.table WITH Factor Support ----
-#' Handles factors, dates, and numeric types with safety checks.
-#' @param dt A `data.table`
-#' @param cols_list List like `list(factor_cols = "gender", date_cols = "birthday")`
-#' @param ordered_factors If `TRUE`, creates ordered factors
-#' @param factor_levels Custom levels (e.g., `list(priority = c("low", "high"))`)
-#' @export
-#' @examples
-#' dt <- data.table(id = 1:3, status = c("A", "B", "A"))
-#' colsTypefix(dt, list(factor_cols = "status"))
-#' levels(dt$status)  # Returns "A", "B"
+#'     # Conversion handlers
+#'     type_handlers <- list(
+#'       text_cols = as.character,
+#'       date_cols = as.Date,
+#'       num_cols = as.numeric,
+#'       logic_cols = as.logical,
+#'       int_cols = as.integer,
+#'       double_cols = as.double
+#'     )
 #'
-setColsType_factor <- function(dt, cols_list, ordered_factors = FALSE,
-                        factor_levels = NULL, drop_unused_levels = TRUE) {
-  stopifnot(
-    data.table::is.data.table(dt),
-    is.list(cols_list),
-    !is.null(names(cols_list)))
-
-    # Enhanced type handlers
-    type_handlers <- list(
-      text_cols = as.character,
-      date_cols = as.Date,
-      num_cols = as.numeric,
-      logic_cols = as.logical,
-      int_cols = as.integer,
-      double_cols = as.double,
-      factor_cols = function(x) {
-        if (is.factor(x)) return(x)  # Already a factor
-        if (drop_unused_levels) {
-          factor(x, ordered = ordered_factors)
-        } else {
-          addNA(factor(x, ordered = ordered_factors), ifany = TRUE)
-        }
-      }
-    )
-
-    # Custom factor levels if provided
-    if (!is.null(factor_levels)) {
-      type_handlers[["factor_cols"]] <- function(x) {
-        if (is.factor(x)) {
-          levels(x) <- factor_levels[[cur_col]]  # cur_col set in the loop
-          return(x)
-        }
-        factor(x, levels = factor_levels[[cur_col]], ordered = ordered_factors)
-      }
-    }
-
-    # Validate columns
-    missing_cols <- setdiff(unlist(cols_list), names(dt))
-    if (length(missing_cols)) {
-      warning("Missing columns: ", paste(missing_cols, collapse = ", "))
-      cols_list <- lapply(cols_list, function(x) intersect(x, names(dt)))
-    }
-
-    # Apply conversions
-    for (type in names(type_handlers)) {
-      if (!is.null(cols_list[[type]])) {
-        if (type == "factor_cols" && !is.null(factor_levels)) {
-          for (cur_col in cols_list[[type]]) {
-            dt[, (cur_col) := type_handlers[[type]](get(cur_col))]
-          }
-        } else {
-          dt[, (cols_list[[type]]) := lapply(.SD, type_handlers[[type]]),
-             .SDcols = cols_list[[type]]]
-        }
-      }
-    }
-
-    invisible(dt)
-}
+#'     # Validate column existence first
+#'     missing_cols <- setdiff(unlist(cols_list), names(dt))
+#'     if (length(missing_cols)) {
+#'       warning("Missing columns: ", paste(missing_cols, collapse = ", "))
+#'       cols_list <- lapply(cols_list, function(x) intersect(x, names(dt)))
+#'     }
+#'
+#'     # Apply conversions
+#'     for (type in names(type_handlers)) {
+#'       if (!is.null(cols_list[[type]])) {
+#'         dt[, (cols_list[[type]]) := lapply(.SD, type_handlers[[type]]),
+#'            .SDcols = cols_list[[type]]]
+#'       }
+#'     }
+#'
+#'     invisible(dt)  # Return silently (modifies by reference anyway)
+#' }
+#'
+#'
+#'
+#' #' Quickly convert column types in a data.table WITH Factor Support ----
+#' #' Handles factors, dates, and numeric types with safety checks.
+#' #' @param dt A `data.table`
+#' #' @param cols_list List like `list(factor_cols = "gender", date_cols = "birthday")`
+#' #' @param ordered_factors If `TRUE`, creates ordered factors
+#' #' @param factor_levels Custom levels (e.g., `list(priority = c("low", "high"))`)
+#' #' @export
+#' #' @examples
+#' #' dt <- data.table(id = 1:3, status = c("A", "B", "A"))
+#' #' colsTypefix(dt, list(factor_cols = "status"))
+#' #' levels(dt$status)  # Returns "A", "B"
+#' #'
+#' setColsType_factor <- function(dt, cols_list, ordered_factors = FALSE,
+#'                         factor_levels = NULL, drop_unused_levels = TRUE) {
+#'   stopifnot(
+#'     data.table::is.data.table(dt),
+#'     is.list(cols_list),
+#'     !is.null(names(cols_list)))
+#'
+#'     # Enhanced type handlers
+#'     type_handlers <- list(
+#'       text_cols = as.character,
+#'       date_cols = as.Date,
+#'       num_cols = as.numeric,
+#'       logic_cols = as.logical,
+#'       int_cols = as.integer,
+#'       double_cols = as.double,
+#'       factor_cols = function(x) {
+#'         if (is.factor(x)) return(x)  # Already a factor
+#'         if (drop_unused_levels) {
+#'           factor(x, ordered = ordered_factors)
+#'         } else {
+#'           addNA(factor(x, ordered = ordered_factors), ifany = TRUE)
+#'         }
+#'       }
+#'     )
+#'
+#'     # Custom factor levels if provided
+#'     if (!is.null(factor_levels)) {
+#'       type_handlers[["factor_cols"]] <- function(x) {
+#'         if (is.factor(x)) {
+#'           levels(x) <- factor_levels[[cur_col]]  # cur_col set in the loop
+#'           return(x)
+#'         }
+#'         factor(x, levels = factor_levels[[cur_col]], ordered = ordered_factors)
+#'       }
+#'     }
+#'
+#'     # Validate columns
+#'     missing_cols <- setdiff(unlist(cols_list), names(dt))
+#'     if (length(missing_cols)) {
+#'       warning("Missing columns: ", paste(missing_cols, collapse = ", "))
+#'       cols_list <- lapply(cols_list, function(x) intersect(x, names(dt)))
+#'     }
+#'
+#'     # Apply conversions
+#'     for (type in names(type_handlers)) {
+#'       if (!is.null(cols_list[[type]])) {
+#'         if (type == "factor_cols" && !is.null(factor_levels)) {
+#'           for (cur_col in cols_list[[type]]) {
+#'             dt[, (cur_col) := type_handlers[[type]](get(cur_col))]
+#'           }
+#'         } else {
+#'           dt[, (cols_list[[type]]) := lapply(.SD, type_handlers[[type]]),
+#'              .SDcols = cols_list[[type]]]
+#'         }
+#'       }
+#'     }
+#'
+#'     invisible(dt)
+#' }
 
 
 #' Fetch Files from Google Drive with Auto-Select
