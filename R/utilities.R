@@ -103,7 +103,7 @@ BQdl <- function(SQLtext, project){
   })
 }
 
-# chunk upload to BQ around bigRquery
+# chunked BigQuery upload around bigRquery ----
 BQupload <- function(project, dt, dataset, table, truncate = FALSE) {
   require("bigrquery")
   require("magrittr")
@@ -159,14 +159,14 @@ BQupload <- function(project, dt, dataset, table, truncate = FALSE) {
 }
 
 
-# chunk upload to BQ around bigRquery with params and partition option
+# chunk BigQuery upload around bigRquery with volume params and partition ----
 BQupload_part <- function(project, dt, dataset, table,
                           max_size = 9, max_load = 10,
                           truncate = FALSE, part_type = NULL, part_field = NULL) {
   require("bigrquery")
   require("magrittr")
   # подсчет оптимального объема таблицы для загрузки, пропорционально рабивая по строкам
-  # размер объекта - по умолчанию не более 10% от ~ 9MB по умолчанию.
+  # размер объекта - по умолчанию не более 10% от ~ 9MB по умолчанию (эвристика)
   max_size <- max_size * 1000000 # Mbytes to bytes
   max_load <- 1 + (max_load / 100) # int percent to float num
 
@@ -237,62 +237,19 @@ BQupload_part <- function(project, dt, dataset, table,
   })
 }
 
-# chunked database upload with parameters around DBI
-pstUpload <- function(pstCon, data, tableName, disp_mode = c("append", "rewrite"),
-                      timeout = 1L, max_size = 9L, max_load = 10L) {
-  require("DBI")
-  # подсчет объема одного куска таблицы для загрузки,
-  # кол-во строк от размера объекта
-  # с переметрами превышения (max_load) и размера одного куска (max_size)
-  max_size <- max_size * 1000000 # Mbytes to bytes
-  max_load <- 1 + (max_load / 100) # int percent to float num
-  dt_rows <- nrow(data)
-  size <- object.size(data) %>% as.integer()
-  overload <- size / max_size %>% round()
-  if(overload > max_load) {
-    n_rows <- round(dt_rows / overload)
-    seq_row <- seq.int(1, dt_rows, by = n_rows)
-    if(seq_row[length(seq_row)] < dt_rows) {seq_row <- c(seq_row, dt_rows)}
-  } else {seq_row <- c(1)}
 
-  # remove table if rewrite needed
-  if(disp_mode == "rewrite" & DBI::dbExistsTable(pstCon, tableName)){DBI::dbRemoveTable(pstCon, tableName)}
-  # if(!DBI::dbExistsTable(pstCon, tableName)){DBI::dbCreateTable(pstCon, tableName, data[0])}
-
-  # main load
-  db_load <- lapply(1:length(seq_row), function(x){
-    if(x >= length(seq_row) & x > 1) {
-      message(paste(Sys.time(), seq_row[x], "total rows uploaded to", tableName))
-      return(x)} else if (length(seq_row) == 1) {
-        dt_short <- data} else {
-          start <- seq_row[x]
-          end <- (seq_row[x + 1]) - 1
-          if(seq_row[x + 1] == seq_row[length(seq_row)]){end <- seq_row[x + 1]}
-          dt_short <- data[start : end, ] }
-    Sys.sleep(timeout)
-    percent <- paste0(round(nrow(dt_short) / dt_rows * 100L, 1), "%")
-    # print(head(dt_short, 10))
-    DBI::dbWriteTable(pstCon, tableName, dt_short, append = TRUE, row.names = FALSE)
-    message(paste(Sys.time(), nrow(dt_short), "rows uploaded,", percent), appendLF = TRUE)
-    return(nrow(dt_short))
-  })
-}
-
-
-
+# logging via telegram API
 telega_send <- function (textt = "I SENT SMTHING THERE") {
-
   require("telegram.bot")
   tel_creds <- readRDS("~/r/tokens/tel_creds.rds")
   bot <- Bot(token = tel_creds$tok)
-
   # print(bot$getMe())
   updates <- bot$getUpdates()
   bot$sendMessage(chat_id = tel_creds$gr_chat_id, text = textt)
 }
 
 
-
+# split month numeric data by day porportionally----
 month2day <- function(mydate = as.Date(Sys.Date() - 1),
                       dt, dimention, backJoin = FALSE) {
   # на входе: 1) дата месяца по которому разбиваем 2) таблица с 2.1 строка-измерение, по которой бьем; 2.2 числовые колонки, которые разбиваются
@@ -355,16 +312,13 @@ month2day <- function(mydate = as.Date(Sys.Date() - 1),
 }
 
 
-
+# phone number regex ----
 subPhone <- function(phone, digits = 10L, ...){
   if(!is.integer(digits) | digits < 1L | digits > 10L) {stop("digits - interger, 1 - 10 ONLY")}
-
   symbols_pattern <- "\\+|\\s+|-|\\(|\\)"
   length_pattern <- paste0(".*(?=.{", digits, "}$)")
-
   cleanPhone <- gsub(symbols_pattern, "", phone)
   cleanPhone <- sub(length_pattern, "", cleanPhone, perl = TRUE)
-
   return(cleanPhone)
 }
 
@@ -399,10 +353,8 @@ colsFix <- function(dt, main_cols, saveNew = TRUE, echo = TRUE){
 
 # adjusting column types
 colsTypefix <- function(dt, cols_list){
-
   require("data.table")
   # костыль, but that's it!
-
   if(!is.null(cols_list[["text_cols"]])){dt[, (cols_list[["text_cols"]]) := lapply(.SD, as.character), .SDcols = cols_list[["text_cols"]]]}
   if(!is.null(cols_list[["date_cols"]])){dt[, (cols_list[["date_cols"]]) := lapply(.SD, as.Date), .SDcols = cols_list[["date_cols"]]]}
   if(!is.null(cols_list[["num_cols"]])){dt[, (cols_list[["num_cols"]]) := lapply(.SD, as.numeric), .SDcols = cols_list[["num_cols"]]]}
@@ -535,12 +487,13 @@ clndr <- function(
   return(calendar)
 }
 
-
+# count sumbol occurence ----
 symbCount <- function(x, symbol){
   n <- lengths(regmatches(x, gregexpr(symbol, x)))
   return(n)}
 
 
+# some marking
 markProject <- function(client = "Клиент", object = "Объект", period = Sys.Date() - 1) {
   manualMPdata <- list(client = client, object = object, period_start = as.Date(cut(period, "month")),
                        period_end = max(seq(as.Date(cut(period, "month")), length = 2, by = "months") - 1))
@@ -713,8 +666,8 @@ saveCredsDB <- function(fileName = "creds", path = "keys"){
 # }
 
 # sys date in digit char format
-getCurDay <- function(...){
-  return(curDay <- Sys.Date() %>% as.integer() %>% as.character())
+getCurDay <- function(x = Sys.Date()){
+  return(as.character(as.integer(x)))
 }
 
 # transform arguments to data.table, syntax - 'arg=value'
@@ -818,21 +771,22 @@ yadirAuthNew <- function (Login = getOption("ryandexdirect.user"), NewUser = FAL
   return(token)
 }
 
-# look for & sub patterns in texts
+# list of patterns
 seekPattern <- function(texts, patterns) {
-  require("data.table")
-  texts <- as.character(texts)
-  patterns <- as.character(patterns)
-  data.table::setDT(list(
-    sapply(texts, function(word) {
-      for (p in patterns) {
-        match <- regmatches(word, regexpr(p, word))
-        if (length(match) > 0) return(match[[1]])  # pick 1st
-      }
-      NA_character_  # No matches
-    })
-  ))
+  if (length(texts) == 0 || length(patterns) == 0) return(rep(NA_character_, length(texts)))
+  res <- rep(NA_character_, length(texts))
+for (p in patterns) {
+    todo <- which(is.na(res))
+    if (length(todo) == 0) break
+    match_positions <- regexpr(p, texts[todo], perl = TRUE)
+    found <- match_positions != -1
+    if (any(found)) {
+      res[todo[found]] <- unlist(regmatches(texts[todo], match_positions))
+    }
+  }
+  return(res)
 }
+
 
 # read google sheet wrapper
 fetchSheet <- function(gs4Key, sheet_key, sheet, colTypes = "c") {
@@ -846,78 +800,7 @@ fetchSheet <- function(gs4Key, sheet_key, sheet, colTypes = "c") {
 }
 
 
-# PostGre DBI wrappers ----
-# local creds
-readCreds <- function(credFileName = "sscdbcreds.rds", dir){
-  authList <- readRDS(paste0(dir, "/", credFileName))
-  return(authList)
-}
-
-# AUTH
-conPG <- function(dbcreds, ...) {
-  require("DBI")
-  require("RPostgreSQL")
-  con <- DBI::dbConnect(
-    drv = RPostgreSQL::PostgreSQL(),
-    host = dbcreds$host,
-    dbname = dbcreds$dbname,
-    user = dbcreds$user,
-    password = dbcreds$password,
-    port = dbcreds$port
-  )
-  return(con)
-}
-
-# combined read\write fun
-# runPG <- function(tableName, mode = c("read", "write")) {
-#   require("DBI")
-#   require("RPostgreSQL")
-#   # READ CREDS
-#   dbcreds <- readCreds(dir = keyPath)
-#   # CONNECT
-#   con <- conPG(dbcreds)
-#   # READ
-#   if(mode == "read"){
-#     userDT <- DBI::dbReadTable(con, tableName) %>% as.data.table()
-#     DBI::dbDisconnect(con)
-#     return(userDT)
-#   } else {
-#     userDT <- DBI::dbWriteTable(con, tableName) %>% as.data.table()
-#     DBI::sdbDisconnect(con)
-#     return(paste(tableName, "written to PG"))
-#   }
-# }
-
-# combined read\write fun explicit
-runPG2 <- function(credFile, dt = NULL, tableName,
-                   mode = c("read", "rewrite", "append")) {
-  require("DBI")
-  require("RPostgreSQL")
-  require("data.table")
-  # READ CREDS
-  dbcreds <- readRDS(credFile)
-  # connect
-  con <- DBI::dbConnect(
-    drv = RPostgreSQL::PostgreSQL(),
-    host = dbcreds$host,
-    dbname = dbcreds$dbname,
-    user = dbcreds$user,
-    password = dbcreds$password,
-    port = dbcreds$port)
-  # READ
-  if(mode == "read") {
-    userDT <- as.data.table(dbReadTable(con, tableName))
-    dbDisconnect(con)
-    return(userDT)
-    # WRITE
-  } else {
-    userDT <- pstUpload(con, dt, tableName, disp_mode = mode)
-    dbDisconnect(con)
-    return(paste(tableName, "written to PG"))
-  }
-}
-
-# loading latest source files from github
+# source latest files directly from github ----
 # in case of outdated package
 getLibSource <- function() {
   source("https://raw.githubusercontent.com/Axeler8/axlTools/refs/heads/main/R/utilities.R")
@@ -932,127 +815,16 @@ endOfMonth <- function(date) {
   }) |> unlist() |> as.Date()
 }
 
-# combined read\write\query fun
-runPG3 <- function(credFile, tableName = NULL, dt = NULL,  query = NexULL,
-                   mode = c("read", "rewrite", "append", "delete", "query")) {
-
-  invisible(lapply(c("DBI", "RPostgreSQL", "data.table" ,"axlTools"), library, character.only = TRUE))
-  # auth
-  dbcreds <- readRDS(credFile)
-  con <- conPG(dbcreds)
-  # method switch
-  if (mode == "read") {
-    if(!dbExistsTable(con, tableName)) {
-      res <- paste0("ERROR: ", tableName, " not found for reading")
-    } else {
-      userDT <- as.data.table(dbReadTable(con, tableName))
-      res <- userDT
-      }
-
-  } else if (mode == "delete") {
-    if(!dbExistsTable(con, tableName)){
-      res <- paste0("ERROR: ", tableName, "not found to delete")
-    } else {
-      dbRemoveTable(con, tableName)
-      res <- paste0(tableName, ' deleted')
-    }
-
-  } else if (mode == "query") {
-    if(is.null(query)) {
-      res <- paste0("ERROR: SQL query required")
-    } else {
-       dt <- dbGetQuery(con, query)
-       if (nrow(dt) < 1 ) {
-         res <- paste0("0 rows for query: ", query)
-       } else {
-         res <- dt
-  }}
-
-  } else if (mode %in% c("rewrite", "append")) {
-    userDT <- pstUpload(con, dt, tableName, disp_mode = mode)
-    res <- paste0(tableName, " written to PG")
-
-  } else {
-    res <- paste0("ERROR: ", mode, " - WRONG MODE! Pick one: ", c("read", "rewrite", "append", "delete", "query"))
-  }
-  dbDisconnect(con)
-
-  if (res %ilike% 'error'){stop(res)}
-  paste("Successfuly did", mode, "on", fifelse(!is.null(tableName), tableName, query)) %>% sendLogs_mini()
-  return(res)
-
-}
-
-# DBI WRAPPER FOR Postgre----
-# latest ver
-runPG4 <- function(credFilePath, tableName = NULL, dt = NULL, query = NULL,
-                   mode = c("read", "rewrite", "append", "delete", "query")) {
-  mode <- match.arg(mode)
-  # ARGS CHECK
-  if(!file.exists(credFilePath)){stop(paste("cred file not found:", credFilePath))}
-  if(mode == "query" && is.null(query)) { stop("SQL query required") }
-  if(mode != "query" && is.null(tableName)) { stop(paste("tableName required to", mode)) }
-  if(mode %in% c("rewrite", "append") && is.null(dt)) {stop(paste("data table\frame required as dt for", mode))}
-  if(!is.null(dt) && !is.data.frame(dt)){stop(paste("dt arg must be of data table\frame class"))}
-  # open & close db connection
-  the_con <- conPG(readRDS(credFilePath))
-  on.exit(dbDisconnect(the_con), add = TRUE)
-  # RUN
-  res <- switch(
-    mode,
-    read = {
-      if(!dbExistsTable(the_con, tableName)) {stop(paste("ERROR! Table", tableName, "not found"))}
-      as.data.table(dbReadTable(the_con, tableName))
-    },
-    delete = {
-      if(!dbExistsTable(the_con, tableName)) {stop(paste("ERROR! Table", tableName, "not found"))}
-      dbRemoveTable(the_con, tableName)
-      paste0(tableName, " deleted")
-    },
-    query = {
-      dt <- dbGetQuery(the_con, query)
-      if (nrow(dt) == 0) {warning("0 rows returned")}
-      dt
-    },
-    rewrite =, append = {
-      pstUpload(the_con, dt, tableName, disp_mode = mode)
-      paste0(tableName, " written to PG")
-    })
-  # Log
-  paste("Successful", mode, "-", ifelse(!is.null(tableName), tableName, query)) %>%
-    sendMsg()
-  return(res)
-}
-
-runPG <- runPG4
-
-# Dynamic args list injection
-makePGfun <- function(mode) {
-  force(mode)
-
-  function(...) {
-    args <- list(...)
-    args$mode <- mode
-    do.call(runPG4, args)
-  }
-}
-
-# shortcuts for conv-e
-readPG <- makePGfun("read")
-deletePG <- makePGfun("delete")
-appendPG <- makePGfun("append")
-queryPG <- makePGfun("query")
-rewritePG <- makePGfun("rewrite")
-
 
 # mass package load with check ----
-requireList <- function(req_lib = c(
+requireList <- function(x = c(
   "curl",
   "jsonlite",
   "data.table",
   "magrittr"),
-  quiet = TRUE, verbose = FALSE) {
-  check_lib <- lapply(req_lib, require, character.only = TRUE, quiet = quiet, verbose = verbose) |> unlist()
+  quiet = TRUE) {
+  req_lib <- x
+  check_lib <- lapply(req_lib, require, character.only = TRUE, quiet = quiet) |> unlist()
   if(any(!check_lib)) {
     stop(paste0(Sys.time(),
                 req_lib[!check_lib], " - package not found. Stopping"))}
@@ -1067,7 +839,7 @@ createExportList <- function(obj_names, envir = parent.frame()) {
 }
 
 
-# log message variant
+# log message variant --- latest ----
 sendMsg <- function(text, scriptName = NULL) {
   # Get script name with multiple fallbacks
   script <- scriptName %||%
@@ -1128,7 +900,7 @@ setColsType <- function(dt, ...) {
 setTypes <- setColsType
 
 
-# add spaces to make strings equal
+# add spaces to make strings equal ----
 alignString <- function(x, n_space = 0, verbose = FALSE){
   lns <- nchar(x)
   longest <- (max(lns, na.rm = T)) + n_space
@@ -1142,8 +914,7 @@ alignString <- function(x, n_space = 0, verbose = FALSE){
 }
 
 
-
-# split long strings
+# split long strings ----
 truncateString <- function(x, max_length = 41, min_length = 5,
                            split = c("/", ".", " ", ",")) {
   # core func
@@ -1172,7 +943,7 @@ truncateString <- function(x, max_length = 41, min_length = 5,
 }
 
 
-# get names of week eng & ru
+# get names of week eng & ru ----
 getWeekDays <- function(the_date = '2026-10-05', cyrillic = TRUE) {
   # format шы always "%Y-%M-%D"
   require("data.table")
@@ -1187,5 +958,3 @@ getWeekDays <- function(the_date = '2026-10-05', cyrillic = TRUE) {
   }
   return(wkd_dt)
 }
-
-
