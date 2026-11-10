@@ -2,8 +2,7 @@
 
 ```r
 # Debug like a raccoon in a dumpster  
-STpaste("Why is this NULL?!")  # → "[2024-05-22 03:00:00] Why is this NULL?!"
-
+STpaste("Why is this NULL?!")  # → "[2026-10-10 03:00:00] Why is this NULL?!"
 
 
 # 

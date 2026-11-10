@@ -1,11 +1,13 @@
 Package: axlTools
 Title: Axel's Swiss Army Knife for Data Wrangling
-Version: 1.2.0
-Description: Utilities for Google Drive, BigQuery, and data cleaning.
+Version: 1.5.0
+Description: Utilities for convinient yet little unconventional dataworks, mainly around data.table package
 Imports:
     data.table,
     bigrquery,
-    googledrive
+    googledrive,
+    googlesheets4,
+    DBI
 License: MIT
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
